@@ -20,7 +20,31 @@ export async function POST(req: NextRequest) {
     }
     const [, owner, repo] = match;
 
-    // Check if we have push access by trying to get repo info
+    // Auto-accept any pending invitations for this repo
+    try {
+      const invRes = await fetch('https://api.github.com/user/repository_invitations', {
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+        },
+      });
+      if (invRes.ok) {
+        const invitations = await invRes.json();
+        for (const inv of invitations) {
+          if (inv.repository?.full_name === `${owner}/${repo}`) {
+            await fetch(`https://api.github.com/user/repository_invitations/${inv.id}`, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github+json',
+              },
+            });
+          }
+        }
+      }
+    } catch {}
+
+    // Check if we have push access
     const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
         'Authorization': `Bearer ${GITHUB_TOKEN}`,
