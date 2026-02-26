@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
           failure: `${BASE_URL}/?credits=error`,
           pending: `${BASE_URL}/?credits=pending`,
         },
-        notification_url: `${BASE_URL}/api/payments/mercadopago?source_news=webhooks`,
+        notification_url: `${BASE_URL}/api/payments/mercadopago/webhook`,
         metadata: {
           user_id: userId,
           amount_usd_equivalent: amountUsd,
