@@ -4,16 +4,26 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-// Fetch live ARS→USD rate from CoinGecko (free, no key needed)
+// Fetch live ARS→USD rate — try dolarapi (blue rate) first, fallback to CoinGecko
 async function getArsToUsdRate(): Promise<number> {
+  // Try dolarapi.com (Argentine blue dollar rate — most accurate for real transactions)
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=ars', { next: { revalidate: 3600 } });
+    const res = await fetch('https://dolarapi.com/v1/dolares/blue', { cache: 'no-store' });
+    const data = await res.json();
+    const venta = data?.venta;
+    if (venta && venta > 0) return 1 / venta;
+  } catch {}
+
+  // Fallback: CoinGecko
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=ars', { cache: 'no-store' });
     const data = await res.json();
     const arsPerUsd = data?.usd?.ars;
     if (arsPerUsd && arsPerUsd > 0) return 1 / arsPerUsd;
   } catch {}
-  // Fallback rate if API fails
-  return 1 / 1385;
+
+  // Last resort fallback
+  return 1 / 1400;
 }
 
 export async function POST(req: NextRequest) {
