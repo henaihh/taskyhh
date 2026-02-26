@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { X, Plus, ImagePlus, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useIsDesktop } from '@/lib/useIsDesktop';
 import { PRIORITY_COLORS } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,8 +31,6 @@ export default function NewTaskModal({
   const [images, setImages] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const isDesktop = useIsDesktop();
-
   const supabase = createClient();
 
   const addTag = () => {
@@ -321,38 +317,36 @@ export default function NewTaskModal({
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+      {/* Backdrop */}
+      <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in duration-200"
       />
 
-      {isDesktop ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={onClose}
-        >
-          <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] overflow-y-auto bg-[#111827] border border-white/[0.08] rounded-2xl w-full max-w-[560px] shadow-2xl">
-            {formContent}
-          </div>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto bg-[#0B0F1A] border-t border-white/[0.07] rounded-t-3xl mx-auto max-w-[480px]"
+      {/* Modal container — bottom sheet on mobile, centered on desktop */}
+      <div
+        className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+        onClick={onClose}
+      >
+        <style>{`
+          @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+          @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+          .modal-mobile { animation: slideUp 0.3s ease-out; }
+          .modal-desktop { animation: scaleIn 0.2s ease-out; }
+        `}</style>
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="
+            w-full max-h-[90vh] overflow-y-auto
+            bg-[#111827] border border-white/[0.08]
+            max-w-[480px] rounded-t-3xl border-b-0
+            md:max-w-[560px] md:rounded-2xl md:border-b md:max-h-[85vh]
+            shadow-2xl modal-mobile md:modal-desktop
+          "
         >
           {formContent}
-        </motion.div>
-      )}
+        </div>
+      </div>
     </>
   );
 }
