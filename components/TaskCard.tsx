@@ -53,6 +53,16 @@ export default function TaskCard({
           {pri.label}
         </span>
 
+        {task.task_type === 'human' ? (
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, color: '#9CA3AF', background: 'rgba(255,255,255,0.06)' }}>
+            🧑 Human
+          </span>
+        ) : (
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, color: '#818CF8', background: 'rgba(99,102,241,0.12)' }}>
+            🤖 Bot
+          </span>
+        )}
+
         {unanswered > 0 && (
           <span style={{ display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: '#F59E0B', background: 'rgba(245,158,11,0.1)', padding: '3px 9px', borderRadius: 6 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>

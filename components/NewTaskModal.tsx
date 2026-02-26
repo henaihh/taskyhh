@@ -19,6 +19,7 @@ export default function NewTaskModal({
   userId: string;
   hasCredits: boolean;
 }) {
+  const [taskType, setTaskType] = useState<'human' | 'bot'>('bot');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [desiredResult, setDesiredResult] = useState('');
@@ -63,6 +64,7 @@ export default function NewTaskModal({
           priority,
           tags,
           status: 'backlog',
+          task_type: taskType,
         })
         .select()
         .single();
@@ -102,8 +104,8 @@ export default function NewTaskModal({
         }
       }
 
-      // If user has credits, queue the task
-      if (hasCredits) {
+      // If user has credits and it's a bot task, queue and execute
+      if (hasCredits && taskType === 'bot') {
         await supabase.from('tasks').update({ status: 'queued' }).eq('id', task.id);
 
         // Trigger agent execution
@@ -138,6 +140,36 @@ export default function NewTaskModal({
               <p className="text-xs text-amber-200">Task will be created but not executed until you add credits.</p>
             </div>
           )}
+
+          {/* Task Type */}
+          <div>
+            <label className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-1.5 block">Task Type</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTaskType('human')}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                  taskType === 'human'
+                    ? 'bg-white/[0.08] border-white/20 text-[#E5E7EB]'
+                    : 'bg-transparent border-white/[0.07] text-[#6B7280] opacity-50'
+                }`}
+              >
+                🧑 Human
+              </button>
+              <button
+                onClick={() => setTaskType('bot')}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                  taskType === 'bot'
+                    ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300'
+                    : 'bg-transparent border-white/[0.07] text-[#6B7280] opacity-50'
+                }`}
+              >
+                🤖 Bot
+              </button>
+            </div>
+            {taskType === 'human' && (
+              <p className="text-[11px] text-[#6B7280] mt-1.5">Human tasks don&apos;t cost credits — they&apos;re for you to complete.</p>
+            )}
+          </div>
 
           {/* Title */}
           <div>

@@ -26,6 +26,7 @@ export interface Task {
   ai_cost_usd: number | null;
   client_cost_usd: number | null;
   margin_usd: number | null;
+  task_type: 'human' | 'bot';
   agent_response: string | null;
   created_at: string;
   completed_at: string | null;

@@ -86,7 +86,14 @@ export default function TaskDetail({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             <span>Back</span>
           </button>
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, fontFamily: "'Space Mono', monospace", letterSpacing: '0.03em', textTransform: 'uppercase', color: pri.color, background: pri.bg }}>{pri.label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {sel.task_type === 'human' ? (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, color: '#9CA3AF', background: 'rgba(255,255,255,0.06)' }}>🧑 Human</span>
+            ) : (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, color: '#818CF8', background: 'rgba(99,102,241,0.12)' }}>🤖 Bot</span>
+            )}
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, fontFamily: "'Space Mono', monospace", letterSpacing: '0.03em', textTransform: 'uppercase', color: pri.color, background: pri.bg }}>{pri.label}</span>
+          </div>
         </div>
 
         {/* Scrollable content */}
@@ -164,8 +171,8 @@ export default function TaskDetail({
             </div>
           )}
 
-          {/* Cost Breakdown */}
-          {sel.client_cost_usd && (
+          {/* Cost Breakdown (bot tasks only) */}
+          {sel.task_type !== 'human' && sel.client_cost_usd && (
             <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 14, padding: 16, marginBottom: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10B981', marginBottom: 12 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M8 10h8M8 14h8"/></svg>
@@ -242,6 +249,29 @@ export default function TaskDetail({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Human task help footer */}
+          {sel.task_type === 'human' && (
+            <div style={{ marginBottom: 22 }}>
+              <a
+                href="https://t.me/hnry_h"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  padding: '14px 20px', borderRadius: 14,
+                  background: 'linear-gradient(135deg, #6366F1, #7C3AED)',
+                  color: '#fff', fontWeight: 700, fontSize: 14,
+                  textDecoration: 'none', fontFamily: "'DM Sans', sans-serif",
+                  boxShadow: '0 4px 20px rgba(99,102,241,0.35)',
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Need help? Contact Henry on Telegram
+              </a>
             </div>
           )}
 
