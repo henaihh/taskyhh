@@ -4,13 +4,23 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-// ARS to USD rough rate — in production, fetch live rate
-const ARS_USD_RATE = 0.00085;
+// Fetch live ARS→USD rate from CoinGecko (free, no key needed)
+async function getArsToUsdRate(): Promise<number> {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=ars', { next: { revalidate: 3600 } });
+    const data = await res.json();
+    const arsPerUsd = data?.usd?.ars;
+    if (arsPerUsd && arsPerUsd > 0) return 1 / arsPerUsd;
+  } catch {}
+  // Fallback rate if API fails
+  return 1 / 1385;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { amount, userId } = await req.json();
-    const amountUsd = amount * ARS_USD_RATE;
+    const arsToUsd = await getArsToUsdRate();
+    const amountUsd = amount * arsToUsd;
 
     const result = await getPreference().create({
       body: {
