@@ -39,7 +39,8 @@ export async function getUserByTelegramId(telegramUserId: number): Promise<{ use
     .eq('telegram_user_id', telegramUserId)
     .single();
 
-  return data || null;
+  if (!data) return null;
+  return { userId: data.user_id, chatId: data.chat_id };
 }
 
 /**
