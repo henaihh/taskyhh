@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { randomUUID } from 'crypto';
-import { rm, readFile } from 'fs/promises';
 
-const execAsync = promisify(exec);
+const GITHUB_TOKEN = process.env.GITHUB_PAT || '';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,54 +9,91 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing repoUrl or userId' }, { status: 400 });
     }
 
-    // Read git credentials
-    const homedir = process.env.HOME || '/home/henai';
-    let gitCredentials = '';
-    try {
-      gitCredentials = await readFile(`${homedir}/.git-credentials`, 'utf-8');
-    } catch {
-      return NextResponse.json({ error: 'Git credentials not configured on server' }, { status: 500 });
+    if (!GITHUB_TOKEN) {
+      return NextResponse.json({ error: 'GitHub token not configured' }, { status: 500 });
     }
 
-    // Parse the repo URL to construct authenticated URL
-    let authUrl = repoUrl.trim();
-    if (gitCredentials.trim()) {
-      // Extract token from credentials (format: https://user:token@github.com)
-      const credLine = gitCredentials.trim().split('\n')[0];
-      const credUrl = new URL(credLine);
-      const repoUrlObj = new URL(repoUrl.trim());
-      repoUrlObj.username = credUrl.username;
-      repoUrlObj.password = credUrl.password;
-      authUrl = repoUrlObj.toString();
+    // Parse repo URL → owner/repo
+    const match = repoUrl.trim().match(/github\.com\/([^/]+)\/([^/.\s]+)/);
+    if (!match) {
+      return NextResponse.json({ error: 'Invalid GitHub repository URL' }, { status: 400 });
+    }
+    const [, owner, repo] = match;
+
+    // Check if we have push access by trying to get repo info
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    if (!repoRes.ok) {
+      return NextResponse.json({ 
+        error: "We don't have access yet. Please add henaihh as a collaborator in your repo settings." 
+      }, { status: 403 });
     }
 
-    const tmpDir = `/tmp/taskbot-verify-${randomUUID()}`;
+    const repoData = await repoRes.json();
+    if (!repoData.permissions?.push) {
+      return NextResponse.json({ 
+        error: "We don't have push access yet. Please add henaihh as a collaborator with write permissions." 
+      }, { status: 403 });
+    }
+
+    // We have access — create/update .taskbot file via GitHub API
     const date = new Date().toISOString();
+    const content = Buffer.from(`TaskBot connected - ${date}\nRepository: ${repoUrl}\n`).toString('base64');
+    const filePath = '.taskbot';
 
-    try {
-      // Clone
-      await execAsync(`git clone --depth 1 "${authUrl}" "${tmpDir}"`, { timeout: 30000 });
-
-      // Create .taskbot file
-      await execAsync(`echo "TaskBot connected - ${date}" > "${tmpDir}/.taskbot"`);
-
-      // Configure git user
-      await execAsync(`cd "${tmpDir}" && git config user.email "bot@taskbot.app" && git config user.name "TaskBot"`);
-
-      // Commit and push
-      await execAsync(`cd "${tmpDir}" && git add .taskbot && git commit -m "TaskBot connected" && git push origin HEAD`, { timeout: 30000 });
-
-      return NextResponse.json({ success: true });
-    } finally {
-      // Cleanup
-      await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    // Check if file already exists (to get SHA for update)
+    let sha: string | undefined;
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    if (fileRes.ok) {
+      const fileData = await fileRes.json();
+      sha = fileData.sha;
     }
+
+    // Create or update the file
+    const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'TaskBot connected ✅',
+        content,
+        ...(sha ? { sha } : {}),
+        committer: {
+          name: 'TaskBot',
+          email: 'bot@taskbot.app',
+        },
+      }),
+    });
+
+    if (!putRes.ok) {
+      const err = await putRes.json();
+      console.error('GitHub PUT error:', err);
+      return NextResponse.json({ 
+        error: "We don't have write access. Please add henaihh as a collaborator with write permissions." 
+      }, { status: 403 });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('verify-repo error:', error);
-    const msg = error.stderr || error.message || 'Unknown error';
-    if (msg.includes('Authentication') || msg.includes('403') || msg.includes('Permission') || msg.includes('could not read')) {
-      return NextResponse.json({ error: "We don't have access yet. Please add henaihh as a collaborator in your repo settings." }, { status: 403 });
-    }
-    return NextResponse.json({ error: "We don't have access yet. Please add henaihh as a collaborator in your repo settings." }, { status: 500 });
+    return NextResponse.json({ 
+      error: "We don't have access yet. Please add henaihh as a collaborator in your repo settings." 
+    }, { status: 500 });
   }
 }
