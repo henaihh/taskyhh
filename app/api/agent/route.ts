@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getClient, AGENT_TOOLS, SYSTEM_PROMPT } from '@/lib/claude';
-import { calculateTaskCost, canExecuteTask, chargeForTask } from '@/lib/credits';
-import type Anthropic from '@anthropic-ai/sdk';
+import { spawnSession, sendMessage, getSessionStatus } from '@/lib/openclaw';
+import { canExecuteTask } from '@/lib/credits';
 
 export async function POST(req: NextRequest) {
   try {
-    const { taskId } = await req.json();
+    const { taskId, message } = await req.json();
     if (!taskId) return NextResponse.json({ error: 'Missing taskId' }, { status: 400 });
 
     const supabase = await createServiceClient();
@@ -31,10 +30,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
     }
 
-    // Update status to in_progress
-    await supabase.from('tasks').update({ status: 'in_progress' }).eq('id', taskId);
+    // Check for existing active session
+    const { data: existingSession } = await supabase
+      .from('agent_sessions')
+      .select('*')
+      .eq('task_id', taskId)
+      .eq('status', 'active')
+      .single();
 
-    // Build user message
+    // If there's an active session and we have a follow-up message, send it
+    if (existingSession && message) {
+      const result = await sendMessage({
+        sessionKey: existingSession.openclaw_session_key,
+        message,
+      });
+
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, sessionKey: existingSession.openclaw_session_key });
+    }
+
+    // If session already exists, return its status
+    if (existingSession) {
+      const status = await getSessionStatus(existingSession.openclaw_session_key);
+      return NextResponse.json({ success: true, session: status });
+    }
+
+    // Build prompt for new session
     const parts: string[] = [
       `**Task:** ${task.title}`,
     ];
@@ -46,126 +70,35 @@ export async function POST(req: NextRequest) {
     }
     if (task.tags?.length > 0) parts.push(`**Tags:** ${task.tags.join(', ')}`);
 
-    const messages: Anthropic.MessageParam[] = [
-      { role: 'user', content: parts.join('\n\n') },
-    ];
+    const prompt = parts.join('\n\n');
 
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    let taskCompleted = false;
-    let iterations = 0;
-    const MAX_ITERATIONS = 10;
+    // Update status to in_progress
+    await supabase.from('tasks').update({ status: 'in_progress' }).eq('id', taskId);
 
-    while (!taskCompleted && iterations < MAX_ITERATIONS) {
-      iterations++;
+    // Spawn OpenClaw sub-agent session
+    const result = await spawnSession({
+      taskId,
+      userId: task.user_id,
+      prompt,
+      callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/openclaw`,
+    });
 
-      const response = await getClient().messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        tools: AGENT_TOOLS,
-        messages,
-      });
-
-      totalInputTokens += response.usage.input_tokens;
-      totalOutputTokens += response.usage.output_tokens;
-
-      // Process response
-      const assistantContent = response.content;
-      messages.push({ role: 'assistant', content: assistantContent });
-
-      if (response.stop_reason === 'end_turn') {
-        // Agent finished without using tools - complete with text
-        const textBlock = assistantContent.find(b => b.type === 'text');
-        await supabase.from('tasks').update({
-          status: 'done',
-          agent_response: textBlock?.text || 'Task completed.',
-          completed_at: new Date().toISOString(),
-        }).eq('id', taskId);
-        taskCompleted = true;
-        break;
-      }
-
-      if (response.stop_reason === 'tool_use') {
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-        for (const block of assistantContent) {
-          if (block.type !== 'tool_use') continue;
-
-          const input = block.input as Record<string, string>;
-
-          switch (block.name) {
-            case 'ask_question': {
-              await supabase.from('admin_questions').insert({
-                task_id: taskId,
-                question: input.question,
-              });
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: 'Question sent to human. Waiting for answer. For now, continue with what you can.',
-              });
-              break;
-            }
-            case 'mark_step_done': {
-              await supabase.from('checklist_items')
-                .update({ done: true })
-                .eq('id', input.checklist_item_id);
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: 'Checklist item marked as done.',
-              });
-              break;
-            }
-            case 'complete_task': {
-              await supabase.from('tasks').update({
-                status: 'done',
-                agent_response: input.summary,
-                completed_at: new Date().toISOString(),
-              }).eq('id', taskId);
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: 'Task marked as completed.',
-              });
-              taskCompleted = true;
-              break;
-            }
-            case 'fail_task': {
-              await supabase.from('tasks').update({
-                status: 'failed',
-                agent_response: input.reason,
-                completed_at: new Date().toISOString(),
-              }).eq('id', taskId);
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: 'Task marked as failed.',
-              });
-              taskCompleted = true;
-              break;
-            }
-          }
-        }
-
-        if (!taskCompleted) {
-          messages.push({ role: 'user', content: toolResults });
-        }
-      }
+    if (!result.ok || !result.sessionKey) {
+      await supabase.from('tasks').update({ status: 'queued' }).eq('id', taskId);
+      return NextResponse.json({ error: result.error || 'Failed to spawn session' }, { status: 500 });
     }
 
-    // Calculate and charge cost
-    const cost = calculateTaskCost(totalInputTokens, totalOutputTokens);
-    await chargeForTask(task.user_id, taskId, cost);
+    // Track session in DB
+    await supabase.from('agent_sessions').insert({
+      task_id: taskId,
+      user_id: task.user_id,
+      openclaw_session_key: result.sessionKey,
+      status: 'active',
+    });
 
     return NextResponse.json({
       success: true,
-      cost: {
-        inputTokens: totalInputTokens,
-        outputTokens: totalOutputTokens,
-        clientCost: cost.clientCost,
-      },
+      sessionKey: result.sessionKey,
     });
   } catch (error: any) {
     console.error('Agent error:', error);

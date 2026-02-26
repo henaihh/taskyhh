@@ -119,3 +119,30 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- Agent sessions (OpenClaw integration)
+create table agent_sessions (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid references tasks(id) on delete cascade,
+  user_id uuid references auth.users(id),
+  openclaw_session_key text not null,
+  status text default 'active' check (status in ('active','completed','failed')),
+  created_at timestamptz default now(),
+  completed_at timestamptz
+);
+
+-- Telegram user mapping
+create table telegram_users (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  telegram_user_id bigint unique not null,
+  chat_id bigint not null,
+  username text,
+  created_at timestamptz default now()
+);
+
+alter table agent_sessions enable row level security;
+alter table telegram_users enable row level security;
+
+create policy "Own agent sessions" on agent_sessions for all using (auth.uid() = user_id);
+create policy "Own telegram mapping" on telegram_users for all using (auth.uid() = user_id);

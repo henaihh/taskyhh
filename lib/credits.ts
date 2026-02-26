@@ -15,6 +15,35 @@ export function calculateTaskCost(
   return { aiCost, clientCost, margin, inputTokens, outputTokens };
 }
 
+/**
+ * Estimate cost from OpenClaw session metadata.
+ * Accepts token counts reported by the OpenClaw session callback.
+ */
+export function calculateCostFromOpenClawSession(sessionMeta: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalCostUsd?: number;
+}): TaskCost {
+  // If OpenClaw reports raw cost directly, apply margin on that
+  if (sessionMeta.totalCostUsd) {
+    const aiCost = sessionMeta.totalCostUsd;
+    const clientCost = aiCost * (1 + MARGIN);
+    return {
+      aiCost,
+      clientCost,
+      margin: clientCost - aiCost,
+      inputTokens: sessionMeta.inputTokens || 0,
+      outputTokens: sessionMeta.outputTokens || 0,
+    };
+  }
+
+  // Otherwise fall back to token-based calculation
+  return calculateTaskCost(
+    sessionMeta.inputTokens || 0,
+    sessionMeta.outputTokens || 0
+  );
+}
+
 export function canExecuteTask(userBalance: number): boolean {
   return userBalance >= MIN_BALANCE_FOR_EXECUTION;
 }
