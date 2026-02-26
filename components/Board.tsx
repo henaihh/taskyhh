@@ -189,15 +189,13 @@ export default function Board({
       )}
 
       {/* New Task Modal */}
-      <AnimatePresence>
-        {showNewTask && (
-          <NewTaskModal
-            onClose={() => setShowNewTask(false)}
-            userId={user.id}
-            hasCredits={balance >= 0.01}
-          />
-        )}
-      </AnimatePresence>
+      {showNewTask && (
+        <NewTaskModal
+          onClose={() => setShowNewTask(false)}
+          userId={user.id}
+          hasCredits={balance >= 0.01}
+        />
+      )}
 
       {/* Credit Panel */}
       {showCredits && (
