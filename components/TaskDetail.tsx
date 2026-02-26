@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Task } from '@/lib/types';
 import { MARGIN } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 const PRI: Record<string, { color: string; bg: string; label: string }> = {
   urgent: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', label: 'Urgent' },
@@ -32,6 +33,7 @@ export default function TaskDetail({
   const [sel, setSel] = useState(initialTask);
   const [ans, setAns] = useState<Record<string, string>>({});
   const supabase = createClient();
+  const isDesktop = useIsDesktop();
   const pri = PRI[sel.priority] || PRI.medium;
   const checklist = sel.checklist_items || [];
   const images = sel.task_images || [];
@@ -67,12 +69,16 @@ export default function TaskDetail({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 100, transition: 'opacity 0.3s', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: anim ? 1 : 0 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 100, transition: 'opacity 0.3s', display: 'flex', alignItems: isDesktop ? 'center' : 'flex-end', justifyContent: 'center', opacity: anim ? 1 : 0 }}
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: '#111827', borderRadius: '24px 24px 0 0', maxWidth: 480, width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none', transform: anim ? 'translateY(0)' : 'translateY(100%)' }}
+        style={isDesktop ? {
+          background: '#111827', borderRadius: 20, maxWidth: 560, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s', border: '1px solid rgba(255,255,255,0.08)', transform: anim ? 'scale(1)' : 'scale(0.95)', opacity: anim ? 1 : 0,
+        } : {
+          background: '#111827', borderRadius: '24px 24px 0 0', maxWidth: 480, width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none', transform: anim ? 'translateY(0)' : 'translateY(100%)',
+        }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>

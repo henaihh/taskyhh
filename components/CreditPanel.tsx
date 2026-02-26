@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { UserProfile, Currency, PaymentMethod } from '@/lib/types';
 import { CREDIT_PACKAGES, CURRENCY_PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '@/lib/constants';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 const PKGS = {
   USD: { symbol: '$', min: 20, step: 5 },
@@ -29,6 +30,7 @@ export default function CreditPanel({
   const [amount, setAmount] = useState(20);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const balance = Number(profile?.credit_balance_usd || 0);
   const pkg = PKGS[cur];
@@ -82,12 +84,16 @@ export default function CreditPanel({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 100, transition: 'opacity 0.3s', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: anim ? 1 : 0 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 100, transition: 'opacity 0.3s', display: 'flex', alignItems: isDesktop ? 'center' : 'flex-end', justifyContent: 'center', opacity: anim ? 1 : 0 }}
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: '#111827', borderRadius: '24px 24px 0 0', maxWidth: 480, width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none', transform: anim ? 'translateY(0)' : 'translateY(100%)' }}
+        style={isDesktop ? {
+          background: '#111827', borderRadius: 20, maxWidth: 560, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s', border: '1px solid rgba(255,255,255,0.08)', transform: anim ? 'scale(1)' : 'scale(0.95)', opacity: anim ? 1 : 0,
+        } : {
+          background: '#111827', borderRadius: '24px 24px 0 0', maxWidth: 480, width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)', border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none', transform: anim ? 'translateY(0)' : 'translateY(100%)',
+        }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>

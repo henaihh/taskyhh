@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${dmSans.variable} ${spaceMono.variable} font-sans antialiased bg-[#0B0F1A] text-[#F9FAFB] min-h-screen`}>
-        <div className="mx-auto max-w-[480px] min-h-screen relative">
+        <div className="mx-auto max-w-[480px] md:max-w-[1200px] min-h-screen relative">
           {children}
         </div>
       </body>

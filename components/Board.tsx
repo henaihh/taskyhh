@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, UserProfile } from '@/lib/types';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import TaskCard from './TaskCard';
 import TaskDetail from './TaskDetail';
 import NewTaskModal from './NewTaskModal';
@@ -28,6 +29,7 @@ export default function Board({
   const [showNewTask, setShowNewTask] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [credAnim, setCredAnim] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const supabase = createClient();
 
@@ -62,8 +64,15 @@ export default function Board({
   const openCredits = () => { setShowCredits(true); setTimeout(() => setCredAnim(true), 20); };
   const closeCredits = () => { setCredAnim(false); setTimeout(() => setShowCredits(false), 300); };
 
+  const EmptyState = ({ type }: { type: 'backlog' | 'done' }) => (
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>{type === 'done' ? '🎉' : '📋'}</div>
+      <p style={{ fontSize: 14, color: '#6B7280' }}>{type === 'done' ? 'No completed tasks yet' : 'All caught up!'}</p>
+    </div>
+  );
+
   return (
-    <div style={{ fontFamily: "'DM Sans', -apple-system, sans-serif", background: '#0B0F1A', minHeight: '100vh', maxWidth: 480, margin: '0 auto', position: 'relative', color: '#E5E7EB', overflow: 'hidden' }}>
+    <div style={{ fontFamily: "'DM Sans', -apple-system, sans-serif", background: '#0B0F1A', minHeight: '100vh', maxWidth: isDesktop ? 1200 : 480, margin: '0 auto', position: 'relative', color: '#E5E7EB', overflow: 'hidden' }}>
 
       {/* Header */}
       <div style={{ background: 'linear-gradient(180deg, rgba(99,102,241,0.12) 0%, transparent 100%)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px 12px' }}>
@@ -85,48 +94,85 @@ export default function Board({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', position: 'relative', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        {(['backlog', 'done'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', color: tab === t ? '#F9FAFB' : '#6B7280', fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: '14px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'color 0.2s', position: 'relative', zIndex: 1 }}>
-            <span style={{ textTransform: 'capitalize' }}>{t}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, background: tab === t ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)', color: tab === t ? '#818CF8' : '#6B7280', borderRadius: 10, padding: '2px 7px', transition: 'all 0.2s' }}>
-              {t === 'backlog' ? backlog.length : done.length}
-            </span>
-          </button>
-        ))}
-        <div style={{ position: 'absolute', bottom: 0, left: 20, width: 'calc(50% - 20px)', height: 2, background: 'linear-gradient(90deg, #6366F1, #818CF8)', borderRadius: '2px 2px 0 0', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: tab === 'done' ? 'translateX(100%)' : 'translateX(0)' }} />
-      </div>
-
-      {/* Task List */}
-      <div style={{ padding: '12px 16px 100px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 'calc(100vh - 140px)' }}>
-        {list.map((t, i) => (
-          <TaskCard
-            key={t.id}
-            task={t}
-            index={i}
-            onClick={() => openDetail(t)}
-            needsCredits={balance < 0.01}
-          />
-        ))}
-        {list.length === 0 && (
-          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>{tab === 'done' ? '🎉' : '📋'}</div>
-            <p style={{ fontSize: 14, color: '#6B7280' }}>{tab === 'done' ? 'No completed tasks yet' : 'All caught up!'}</p>
+      {/* Desktop: Kanban columns side by side */}
+      {isDesktop ? (
+        <div style={{ display: 'flex', gap: 24, padding: '16px 20px 24px', height: 'calc(100vh - 76px)' }}>
+          {/* Backlog Column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '0 2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#F9FAFB' }}>Backlog</span>
+                <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(99,102,241,0.2)', color: '#818CF8', borderRadius: 10, padding: '2px 7px' }}>{backlog.length}</span>
+              </div>
+              <button
+                onClick={() => setShowNewTask(true)}
+                style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #6366F1, #7C3AED)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.3)', transition: 'all 0.2s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+              {backlog.map((t, i) => (
+                <TaskCard key={t.id} task={t} index={i} onClick={() => openDetail(t)} needsCredits={balance < 0.01} />
+              ))}
+              {backlog.length === 0 && <EmptyState type="backlog" />}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* FAB */}
-      {tab === 'backlog' && (
-        <button
-          onClick={() => setShowNewTask(true)}
-          style={{ position: 'fixed', bottom: 28, right: 'calc(50% - 220px)', width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, #6366F1, #7C3AED)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 20px rgba(99,102,241,0.35)', transition: 'all 0.2s', zIndex: 10 }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
+          {/* Divider */}
+          <div style={{ width: 1, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+
+          {/* Done Column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '0 2px' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#F9FAFB' }}>Done</span>
+              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.08)', color: '#6B7280', borderRadius: 10, padding: '2px 7px' }}>{done.length}</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+              {done.map((t, i) => (
+                <TaskCard key={t.id} task={t} index={i} onClick={() => openDetail(t)} needsCredits={balance < 0.01} />
+              ))}
+              {done.length === 0 && <EmptyState type="done" />}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Mobile: Tabs */}
+          <div style={{ display: 'flex', position: 'relative', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            {(['backlog', 'done'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', color: tab === t ? '#F9FAFB' : '#6B7280', fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: '14px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'color 0.2s', position: 'relative', zIndex: 1 }}>
+                <span style={{ textTransform: 'capitalize' }}>{t}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, background: tab === t ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)', color: tab === t ? '#818CF8' : '#6B7280', borderRadius: 10, padding: '2px 7px', transition: 'all 0.2s' }}>
+                  {t === 'backlog' ? backlog.length : done.length}
+                </span>
+              </button>
+            ))}
+            <div style={{ position: 'absolute', bottom: 0, left: 20, width: 'calc(50% - 20px)', height: 2, background: 'linear-gradient(90deg, #6366F1, #818CF8)', borderRadius: '2px 2px 0 0', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: tab === 'done' ? 'translateX(100%)' : 'translateX(0)' }} />
+          </div>
+
+          {/* Mobile: Task List */}
+          <div style={{ padding: '12px 16px 100px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 'calc(100vh - 140px)' }}>
+            {list.map((t, i) => (
+              <TaskCard key={t.id} task={t} index={i} onClick={() => openDetail(t)} needsCredits={balance < 0.01} />
+            ))}
+            {list.length === 0 && <EmptyState type={tab} />}
+          </div>
+
+          {/* Mobile: FAB */}
+          {tab === 'backlog' && (
+            <button
+              onClick={() => setShowNewTask(true)}
+              style={{ position: 'fixed', bottom: 28, right: 'calc(50% - 220px)', width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, #6366F1, #7C3AED)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 20px rgba(99,102,241,0.35)', transition: 'all 0.2s', zIndex: 10 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          )}
+        </>
       )}
 
       {/* Task Detail */}

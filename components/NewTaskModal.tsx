@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, ImagePlus, Loader2, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { PRIORITY_COLORS } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,6 +33,7 @@ export default function NewTaskModal({
   const [images, setImages] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const supabase = createClient();
 
@@ -124,23 +126,7 @@ export default function NewTaskModal({
     }
   };
 
-  return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-      />
-
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto bg-[#0B0F1A] border-t border-white/[0.07] rounded-t-3xl mx-auto max-w-[480px]"
-      >
+  const formContent = (
         <div className="p-5 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -331,7 +317,41 @@ export default function NewTaskModal({
 
           <div className="h-4" />
         </div>
-      </motion.div>
+  );
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+      />
+
+      {isDesktop ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+        >
+          <div className="pointer-events-auto max-h-[85vh] overflow-y-auto bg-[#0B0F1A] border border-white/[0.07] rounded-2xl w-full max-w-[560px]">
+            {formContent}
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto bg-[#0B0F1A] border-t border-white/[0.07] rounded-t-3xl mx-auto max-w-[480px]"
+        >
+          {formContent}
+        </motion.div>
+      )}
     </>
   );
 }
