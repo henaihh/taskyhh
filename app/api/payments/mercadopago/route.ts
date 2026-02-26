@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Webhook / IPN handler
+// Webhook / IPN handler — MercadoPago sends both GET (IPN) and POST (webhooks v2)
 export async function GET(req: NextRequest) {
   return handleWebhook(req);
 }
@@ -67,10 +67,19 @@ export async function PUT(req: NextRequest) {
 async function handleWebhook(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const topic = searchParams.get('topic') || searchParams.get('type');
-    const paymentIdParam = searchParams.get('data.id') || searchParams.get('id');
+    let topic = searchParams.get('topic') || searchParams.get('type');
+    let paymentIdParam = searchParams.get('data.id') || searchParams.get('id');
 
-    if (topic === 'payment' && paymentIdParam) {
+    // MercadoPago v2 webhooks send POST with JSON body
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        if (body.type) topic = body.type;
+        if (body.data?.id) paymentIdParam = String(body.data.id);
+      } catch {}
+    }
+
+    if ((topic === 'payment' || topic === 'payment.updated' || topic === 'payment.created') && paymentIdParam) {
       const paymentData = await getPayment().get({ id: paymentIdParam });
 
       if (paymentData.status === 'approved') {
