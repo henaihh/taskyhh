@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { routeTelegramMessage } from '@/lib/telegram-bridge';
 
+/**
+ * GET /api/webhook/telegram?register=true
+ * Registers this URL as the Telegram webhook. Call once after deploy.
+ */
+export async function GET(req: NextRequest) {
+  const register = req.nextUrl.searchParams.get('register');
+
+  if (register === 'true') {
+    const token = process.env.TASKBOT_TELEGRAM_BOT_TOKEN;
+    const webhookUrl = process.env.TASKBOT_TELEGRAM_WEBHOOK_URL
+      || `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/telegram`;
+
+    if (!token) return NextResponse.json({ error: 'Missing TASKBOT_TELEGRAM_BOT_TOKEN' }, { status: 500 });
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ['message'],
+      }),
+    });
+
+    const data = await res.json();
+    return NextResponse.json({ webhook: webhookUrl, telegram: data });
+  }
+
+  // Check current webhook info
+  const token = process.env.TASKBOT_TELEGRAM_BOT_TOKEN;
+  if (!token) return NextResponse.json({ error: 'No bot token configured' }, { status: 500 });
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+  const data = await res.json();
+  return NextResponse.json(data);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const update = await req.json();
