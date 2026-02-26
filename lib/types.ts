@@ -6,6 +6,9 @@ export interface UserProfile {
   total_spent_usd: number;
   total_tasks_completed: number;
   created_at: string;
+  website_url: string | null;
+  repo_url: string | null;
+  onboarded: boolean;
 }
 
 export interface Task {

@@ -26,7 +26,7 @@ export default function CreditPanel({
   spent: number;
   doneCount: number;
 }) {
-  const [cur, setCur] = useState<Currency>('USD');
+  const [cur, setCur] = useState<Currency>('ARS');
   const [amount, setAmount] = useState(20);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
@@ -134,7 +134,7 @@ export default function CreditPanel({
 
           {/* Currency Selector */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            {(['USD', 'ARS', 'BTC'] as Currency[]).map(c => (
+            {(['ARS'] as Currency[]).map(c => (
               <button key={c} onClick={() => handleCurrencyChange(c)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, background: cur === c ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)', border: cur === c ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.08)', color: cur === c ? '#818CF8' : '#6B7280', fontSize: 13, fontWeight: 700, fontFamily: "'Space Mono', monospace", cursor: 'pointer', transition: 'all 0.2s' }}>
                 {c === 'BTC' && (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v2m0 16v2M9 4h4.5a3.5 3.5 0 010 7H9m0 0h5.5a3.5 3.5 0 010 7H9m0-14v14"/></svg>
