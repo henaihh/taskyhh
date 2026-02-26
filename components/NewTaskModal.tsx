@@ -335,9 +335,10 @@ export default function NewTaskModal({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          onClick={onClose}
         >
-          <div className="pointer-events-auto max-h-[85vh] overflow-y-auto bg-[#0B0F1A] border border-white/[0.07] rounded-2xl w-full max-w-[560px]">
+          <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] overflow-y-auto bg-[#111827] border border-white/[0.08] rounded-2xl w-full max-w-[560px] shadow-2xl">
             {formContent}
           </div>
         </motion.div>
