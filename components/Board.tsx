@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Wallet, Plus, LogOut } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { Task, UserProfile } from '@/lib/types';
 import TaskCard from './TaskCard';
@@ -10,8 +9,7 @@ import TaskDetail from './TaskDetail';
 import NewTaskModal from './NewTaskModal';
 import CreditPanel from './CreditPanel';
 import type { User } from '@supabase/supabase-js';
-
-const tabs = ['Backlog', 'Done'] as const;
+import { MARGIN } from '@/lib/constants';
 
 export default function Board({
   user,
@@ -22,18 +20,19 @@ export default function Board({
   profile: UserProfile | null;
   initialTasks: Task[];
 }) {
-  const [activeTab, setActiveTab] = useState<typeof tabs[number]>('Backlog');
+  const [tab, setTab] = useState<'backlog' | 'done'>('backlog');
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [detailAnim, setDetailAnim] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
+  const [credAnim, setCredAnim] = useState(false);
 
   const supabase = createClient();
 
-  // Realtime subscriptions
   useEffect(() => {
-    const taskChannel = supabase
+    const channel = supabase
       .channel('tasks-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` },
         async () => {
@@ -46,145 +45,102 @@ export default function Board({
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles', filter: `id=eq.${user.id}` },
-        (payload) => {
-          setProfile(payload.new as UserProfile);
-        }
+        (payload) => setProfile(payload.new as UserProfile)
       )
       .subscribe();
-
-    return () => { supabase.removeChannel(taskChannel); };
+    return () => { supabase.removeChannel(channel); };
   }, [user.id]);
 
-  const backlogTasks = tasks.filter(t => ['backlog', 'queued', 'in_progress'].includes(t.status));
-  const doneTasks = tasks.filter(t => ['done', 'failed'].includes(t.status));
-  const filteredTasks = activeTab === 'Backlog' ? backlogTasks : doneTasks;
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/login';
-  };
-
+  const backlog = tasks.filter(t => ['backlog', 'queued', 'in_progress'].includes(t.status));
+  const done = tasks.filter(t => ['done', 'failed'].includes(t.status));
+  const list = tab === 'backlog' ? backlog : done;
   const balance = Number(profile?.credit_balance_usd || 0);
+  const spent = tasks.filter(t => t.client_cost_usd).reduce((s, t) => s + Number(t.client_cost_usd), 0);
+
+  const openDetail = (t: Task) => { setSelectedTask(t); setTimeout(() => setDetailAnim(true), 20); };
+  const closeDetail = () => { setDetailAnim(false); setTimeout(() => setSelectedTask(null), 300); };
+  const openCredits = () => { setShowCredits(true); setTimeout(() => setCredAnim(true), 20); };
+  const closeCredits = () => { setCredAnim(false); setTimeout(() => setShowCredits(false), 300); };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div style={{ fontFamily: "'DM Sans', -apple-system, sans-serif", background: '#0B0F1A', minHeight: '100vh', maxWidth: 480, margin: '0 auto', position: 'relative', color: '#E5E7EB', overflow: 'hidden' }}>
+
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#0B0F1A]/80 backdrop-blur-xl border-b border-white/[0.07] px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6366F1] to-[#818CF8] flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
+      <div style={{ background: 'linear-gradient(180deg, rgba(99,102,241,0.12) 0%, transparent 100%)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '16px 20px 12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 4px 16px rgba(99,102,241,0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 2v6"/><circle cx="12" cy="2" r="1"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/><path d="M9 18h6"/></svg>
             </div>
             <div>
-              <h1 className="text-base font-bold leading-tight">TaskBot</h1>
-              <p className="text-[10px] text-[#6B7280] font-medium tracking-wide">Human → Robot</p>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: '#F9FAFB', letterSpacing: '-0.02em', lineHeight: 1.1, margin: 0 }}>TaskBot</h1>
+              <p style={{ fontSize: 11, color: '#6B7280', fontFamily: "'Space Mono', monospace", letterSpacing: '0.02em', marginTop: 2 }}>Human → Robot</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowCredits(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.08] transition-colors"
-            >
-              <Wallet className="w-3.5 h-3.5 text-[#818CF8]" />
-              <span className="text-xs font-mono font-bold">${balance.toFixed(2)}</span>
-            </button>
-            {profile?.avatar_url && (
-              <img
-                src={profile.avatar_url}
-                alt=""
-                className="w-8 h-8 rounded-full border border-white/[0.07]"
-              />
-            )}
-            <button onClick={handleSignOut} className="p-1.5 text-[#6B7280] hover:text-white transition-colors">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Tabs */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="relative flex bg-white/[0.04] rounded-xl p-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`relative z-10 flex-1 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab ? 'text-white' : 'text-[#6B7280]'
-              }`}
-            >
-              {tab}
-              {tab === 'Backlog' && backlogTasks.length > 0 && (
-                <span className="ml-1.5 text-xs text-[#9CA3AF]">{backlogTasks.length}</span>
-              )}
-              {tab === 'Done' && doneTasks.length > 0 && (
-                <span className="ml-1.5 text-xs text-[#9CA3AF]">{doneTasks.length}</span>
-              )}
-            </button>
-          ))}
-          <motion.div
-            className="absolute top-1 bottom-1 rounded-lg bg-white/[0.08]"
-            layout
-            transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-            style={{
-              width: `${100 / tabs.length}%`,
-              left: `${(tabs.indexOf(activeTab) / tabs.length) * 100}%`,
-            }}
-          />
+          <button onClick={openCredits} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))', borderRadius: 14, padding: '8px 14px', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', color: '#818CF8', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="15" r="1.5" fill="currentColor"/></svg>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#F9FAFB', fontFamily: "'Space Mono', monospace" }}>${balance.toFixed(2)}</span>
+            <span style={{ fontSize: 10, color: '#818CF8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>credits</span>
+          </button>
         </div>
       </div>
 
-      {/* Task List */}
-      <div className="flex-1 px-4 pb-24 space-y-3">
-        <AnimatePresence mode="popLayout">
-          {filteredTasks.map((task, i) => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ delay: i * 0.06 }}
-            >
-              <TaskCard
-                task={task}
-                onClick={() => setSelectedTask(task)}
-                needsCredits={balance < 0.01}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      {/* Tabs */}
+      <div style={{ display: 'flex', position: 'relative', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {(['backlog', 'done'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', color: tab === t ? '#F9FAFB' : '#6B7280', fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", padding: '14px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'color 0.2s', position: 'relative', zIndex: 1 }}>
+            <span style={{ textTransform: 'capitalize' }}>{t}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, background: tab === t ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)', color: tab === t ? '#818CF8' : '#6B7280', borderRadius: 10, padding: '2px 7px', transition: 'all 0.2s' }}>
+              {t === 'backlog' ? backlog.length : done.length}
+            </span>
+          </button>
+        ))}
+        <div style={{ position: 'absolute', bottom: 0, left: 20, width: 'calc(50% - 20px)', height: 2, background: 'linear-gradient(90deg, #6366F1, #818CF8)', borderRadius: '2px 2px 0 0', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: tab === 'done' ? 'translateX(100%)' : 'translateX(0)' }} />
+      </div>
 
-        {filteredTasks.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-[#6B7280]">
-            <Bot className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm">
-              {activeTab === 'Backlog' ? 'No tasks yet. Tap + to create one.' : 'No completed tasks yet.'}
-            </p>
+      {/* Task List */}
+      <div style={{ padding: '12px 16px 100px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 'calc(100vh - 140px)' }}>
+        {list.map((t, i) => (
+          <TaskCard
+            key={t.id}
+            task={t}
+            index={i}
+            onClick={() => openDetail(t)}
+            needsCredits={balance < 0.01}
+          />
+        ))}
+        {list.length === 0 && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>{tab === 'done' ? '🎉' : '📋'}</div>
+            <p style={{ fontSize: 14, color: '#6B7280' }}>{tab === 'done' ? 'No completed tasks yet' : 'All caught up!'}</p>
           </div>
         )}
       </div>
 
       {/* FAB */}
-      {activeTab === 'Backlog' && (
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+      {tab === 'backlog' && (
+        <button
           onClick={() => setShowNewTask(true)}
-          className="fixed bottom-6 right-6 max-w-[480px] w-14 h-14 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#818CF8] text-white shadow-lg shadow-indigo-500/25 flex items-center justify-center z-50"
+          style={{ position: 'fixed', bottom: 28, right: 'calc(50% - 220px)', width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, #6366F1, #7C3AED)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 20px rgba(99,102,241,0.35)', transition: 'all 0.2s', zIndex: 10 }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
         >
-          <Plus className="w-6 h-6" />
-        </motion.button>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       )}
 
-      {/* Task Detail Sheet */}
-      <AnimatePresence>
-        {selectedTask && (
-          <TaskDetail
-            task={selectedTask}
-            onClose={() => setSelectedTask(null)}
-            userId={user.id}
-          />
-        )}
-      </AnimatePresence>
+      {/* Task Detail */}
+      {selectedTask && (
+        <TaskDetail
+          task={selectedTask}
+          anim={detailAnim}
+          onClose={closeDetail}
+          userId={user.id}
+          tasks={tasks}
+          setTasks={setTasks}
+          setSelectedTask={setSelectedTask}
+        />
+      )}
 
       {/* New Task Modal */}
       <AnimatePresence>
@@ -198,15 +154,16 @@ export default function Board({
       </AnimatePresence>
 
       {/* Credit Panel */}
-      <AnimatePresence>
-        {showCredits && (
-          <CreditPanel
-            onClose={() => setShowCredits(false)}
-            profile={profile}
-            userId={user.id}
-          />
-        )}
-      </AnimatePresence>
+      {showCredits && (
+        <CreditPanel
+          anim={credAnim}
+          onClose={closeCredits}
+          profile={profile}
+          userId={user.id}
+          spent={spent}
+          doneCount={done.length}
+        />
+      )}
     </div>
   );
 }
