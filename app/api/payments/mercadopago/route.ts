@@ -90,7 +90,13 @@ async function handleWebhook(req: NextRequest) {
     }
 
     if ((topic === 'payment' || topic === 'payment.updated' || topic === 'payment.created') && paymentIdParam) {
-      const paymentData = await getPayment().get({ id: paymentIdParam });
+      let paymentData;
+      try {
+        paymentData = await getPayment().get({ id: paymentIdParam });
+      } catch {
+        // Test webhook or invalid payment ID — acknowledge without processing
+        return NextResponse.json({ received: true, note: 'payment not found' });
+      }
 
       if (paymentData.status === 'approved') {
         const userId = (paymentData.metadata as any)?.user_id;
