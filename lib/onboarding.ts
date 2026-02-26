@@ -33,10 +33,6 @@ export async function runOnboarding(supabase: SupabaseClient, userId: string) {
       text: 'Enter your website URL',
       position: 0,
     });
-    await supabase.from('admin_questions').insert({
-      task_id: task1.id,
-      question: 'Need help with this step? Contact Henry on Telegram: https://t.me/hnry_h',
-    });
   }
 
   // Task 2: Connect GitHub repository
@@ -61,10 +57,6 @@ export async function runOnboarding(supabase: SupabaseClient, userId: string) {
       { task_id: task2.id, text: 'Paste your repository URL', position: 0 },
       { task_id: task2.id, text: 'Add henaihh as a collaborator on GitHub', position: 1 },
     ]);
-    await supabase.from('admin_questions').insert({
-      task_id: task2.id,
-      question: 'Need help with this step? Contact Henry on Telegram: https://t.me/hnry_h',
-    });
   }
 
   // Mark onboarded

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Task } from '@/lib/types';
+import { Task, UserProfile } from '@/lib/types';
 import { MARGIN } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { useIsDesktop } from '@/lib/useIsDesktop';
+import OnboardingTaskDetail from './OnboardingTaskDetail';
 
 const PRI: Record<string, { color: string; bg: string; label: string }> = {
   urgent: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', label: 'Urgent' },
@@ -21,6 +22,8 @@ export default function TaskDetail({
   tasks,
   setTasks,
   setSelectedTask,
+  profile,
+  setProfile,
 }: {
   task: Task;
   anim: boolean;
@@ -29,12 +32,15 @@ export default function TaskDetail({
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   setSelectedTask: React.Dispatch<React.SetStateAction<Task | null>>;
+  profile?: UserProfile | null;
+  setProfile?: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }) {
   const [sel, setSel] = useState(initialTask);
   const [ans, setAns] = useState<Record<string, string>>({});
   const supabase = createClient();
   const isDesktop = useIsDesktop();
   const pri = PRI[sel.priority] || PRI.medium;
+  const isOnboarding = (sel.tags || []).includes('onboarding');
   const checklist = sel.checklist_items || [];
   const images = sel.task_images || [];
   const questions = sel.admin_questions || [];
@@ -99,7 +105,28 @@ export default function TaskDetail({
         {/* Scrollable content */}
         <div style={{ overflowY: 'auto', padding: '20px 20px 0', flex: 1 }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: '#F9FAFB', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 8 }}>{sel.title}</h2>
-          <p style={{ fontSize: 14, color: '#9CA3AF', lineHeight: 1.6, marginBottom: 20 }}>{sel.description}</p>
+          {!isOnboarding && <p style={{ fontSize: 14, color: '#9CA3AF', lineHeight: 1.6, marginBottom: 20 }}>{sel.description}</p>}
+
+          {isOnboarding ? (
+            <>
+              <p style={{ fontSize: 14, color: '#9CA3AF', lineHeight: 1.6, marginBottom: 20 }}>{sel.description}</p>
+              <OnboardingTaskDetail
+                task={sel}
+                profile={profile || null}
+                onTaskUpdate={(updater) => {
+                  setSel(updater);
+                  setTasks(prev => prev.map(t => t.id === sel.id ? updater(t) : t));
+                }}
+                onProfileUpdate={(partial) => {
+                  if (setProfile) {
+                    setProfile(prev => prev ? { ...prev, ...partial } : prev);
+                  }
+                }}
+              />
+              <div style={{ height: 40 }} />
+            </>
+          ) : (
+          <>
 
           {/* Desired Result */}
           {sel.desired_result && (
@@ -276,6 +303,8 @@ export default function TaskDetail({
           )}
 
           <div style={{ height: 40 }} />
+          </>
+          )}
         </div>
       </div>
     </div>
