@@ -59,6 +59,30 @@ export async function runOnboarding(supabase: SupabaseClient, userId: string) {
     ]);
   }
 
+  // Task 3: Set up auto-deploy (optional)
+  const { data: task3 } = await supabase
+    .from('tasks')
+    .insert({
+      user_id: userId,
+      title: 'Set up auto-deploy (optional)',
+      task_type: 'human',
+      priority: 'low',
+      status: 'backlog',
+      description:
+        "If your project is on Vercel, you can set up automatic deploys after TaskBot merges code changes.\n\n**How to create a deploy hook:**\n1. Go to your Vercel project → Settings → Git → Deploy Hooks\n2. Create a hook: name it 'TaskBot', branch 'main'\n3. Copy the URL and paste it below\n\nIf you don't use Vercel, skip this step.",
+      desired_result: 'Deploy hook URL saved for automatic deployments.',
+      tags: ['setup', 'onboarding'],
+    })
+    .select()
+    .single();
+
+  if (task3) {
+    await supabase.from('checklist_items').insert([
+      { task_id: task3.id, text: 'Create deploy hook in Vercel', position: 0 },
+      { task_id: task3.id, text: 'Paste deploy hook URL below', position: 1 },
+    ]);
+  }
+
   // Mark onboarded
   await supabase
     .from('user_profiles')

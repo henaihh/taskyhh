@@ -18,8 +18,9 @@ export default function OnboardingTaskDetail({
   const supabase = createClient();
   const isWebsite = task.title.toLowerCase().includes('website');
   const isGithub = task.title.toLowerCase().includes('github');
+  const isDeploy = task.title.toLowerCase().includes('auto-deploy');
 
-  const currentUrl = isWebsite ? (profile?.website_url || '') : (profile?.repo_url || '');
+  const currentUrl = isDeploy ? (profile?.vercel_deploy_hook || '') : isWebsite ? (profile?.website_url || '') : (profile?.repo_url || '');
   const [url, setUrl] = useState(currentUrl);
   const [editing, setEditing] = useState(!currentUrl);
   const [saving, setSaving] = useState(false);
@@ -27,6 +28,8 @@ export default function OnboardingTaskDetail({
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState('');
   const [verifySuccess, setVerifySuccess] = useState(false);
+  const [deployTesting, setDeployTesting] = useState(false);
+  const [deployResult, setDeployResult] = useState<{ success?: boolean; error?: string } | null>(null);
 
   const checklist = (task.checklist_items || []).sort((a, b) => a.position - b.position);
   const firstItem = checklist[0];
@@ -38,7 +41,7 @@ export default function OnboardingTaskDetail({
     setSaving(true);
     setError('');
     try {
-      const field = isWebsite ? 'website_url' : 'repo_url';
+      const field = isDeploy ? 'vercel_deploy_hook' : isWebsite ? 'website_url' : 'repo_url';
       const { error: err } = await supabase
         .from('user_profiles')
         .update({ [field]: url.trim() })
@@ -56,8 +59,8 @@ export default function OnboardingTaskDetail({
         }));
       }
 
-      // For website task, mark as done
-      if (isWebsite) {
+      // For website or deploy task, mark as done
+      if (isWebsite || isDeploy) {
         await supabase.from('tasks').update({ status: 'done' }).eq('id', task.id);
         onTaskUpdate(t => ({ ...t, status: 'done' }));
       }
@@ -153,7 +156,7 @@ export default function OnboardingTaskDetail({
       {/* URL Section */}
       <div>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: '#818CF8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Space Mono', monospace", marginBottom: 12 }}>
-          {isWebsite ? '🌐 Website URL' : '📦 Repository URL'}
+          {isDeploy ? '▲ Deploy Hook URL' : isWebsite ? '🌐 Website URL' : '📦 Repository URL'}
         </h3>
 
         {showSaved ? (
@@ -166,7 +169,7 @@ export default function OnboardingTaskDetail({
           <div>
             <input
               type="url"
-              placeholder={isWebsite ? 'https://yourwebsite.com' : 'https://github.com/user/repo'}
+              placeholder={isDeploy ? 'https://api.vercel.com/v1/integrations/deploy/...' : isWebsite ? 'https://yourwebsite.com' : 'https://github.com/user/repo'}
               value={url}
               onChange={e => setUrl(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveUrl(); }}
@@ -223,6 +226,50 @@ export default function OnboardingTaskDetail({
             )}
           </div>
         </div>
+      )}
+
+      {/* Deploy hook: Test & Skip */}
+      {isDeploy && !editing && savedUrl && !taskDone && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={async () => {
+              setDeployTesting(true);
+              setDeployResult(null);
+              try {
+                const res = await fetch('/api/deploy-hook', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: task.user_id }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                setDeployResult({ success: true });
+              } catch (e: any) {
+                setDeployResult({ error: e.message || 'Deploy failed' });
+              } finally {
+                setDeployTesting(false);
+              }
+            }}
+            disabled={deployTesting}
+            style={{ ...saveButtonStyle, marginTop: 0, background: 'linear-gradient(135deg, #10B981, #059669)', boxShadow: '0 4px 16px rgba(16,185,129,0.3)', opacity: deployTesting ? 0.7 : 1 }}
+          >
+            {deployTesting ? 'Deploying...' : '▲ Test Deploy'}
+          </button>
+          {deployResult?.success && <p style={{ color: '#10B981', fontSize: 13 }}>✓ Deploy triggered successfully!</p>}
+          {deployResult?.error && <p style={{ color: '#EF4444', fontSize: 13 }}>{deployResult.error}</p>}
+        </div>
+      )}
+
+      {isDeploy && !taskDone && (
+        <button
+          onClick={async () => {
+            await supabase.from('tasks').update({ status: 'done' }).eq('id', task.id);
+            onTaskUpdate(t => ({ ...t, status: 'done' }));
+          }}
+          style={{ padding: '12px 16px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#6B7280', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+        >
+          Skip this step →
+        </button>
       )}
 
       {/* Need help */}

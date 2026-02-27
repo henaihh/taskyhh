@@ -8,6 +8,7 @@ export interface UserProfile {
   created_at: string;
   website_url: string | null;
   repo_url: string | null;
+  vercel_deploy_hook?: string;
   onboarded: boolean;
 }
 

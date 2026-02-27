@@ -99,6 +99,12 @@ export default function Board({
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.repo_url.replace(/^https?:\/\/github\.com\//, '')}</span>
               </a>
             )}
+            {isDesktop && profile?.vercel_deploy_hook && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#6B7280', fontSize: 12, fontFamily: "'Space Mono', monospace", padding: '6px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} title="Vercel auto-deploy enabled">
+                <svg width="13" height="13" viewBox="0 0 76 65" fill="currentColor" style={{ flexShrink: 0 }}><path d="M37.5274 0L75.0548 65H0L37.5274 0Z"/></svg>
+                <span>Vercel</span>
+              </div>
+            )}
           <button onClick={openCredits} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))', borderRadius: 14, padding: '8px 14px', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', color: '#818CF8', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="15" r="1.5" fill="currentColor"/></svg>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#F9FAFB', fontFamily: "'Space Mono', monospace" }}>${balance.toFixed(2)}</span>
