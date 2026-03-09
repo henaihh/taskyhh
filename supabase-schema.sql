@@ -8,6 +8,9 @@ create table user_profiles (
   credit_balance_usd numeric(12,6) default 0,
   total_spent_usd numeric(12,6) default 0,
   total_tasks_completed int default 0,
+  vercel_deploy_hook text,
+  manual_deploy_required boolean default false,
+  manual_deploy_reason text,
   created_at timestamptz default now()
 );
 

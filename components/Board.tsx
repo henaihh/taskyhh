@@ -9,6 +9,7 @@ import TaskCard from './TaskCard';
 import TaskDetail from './TaskDetail';
 import NewTaskModal from './NewTaskModal';
 import CreditPanel from './CreditPanel';
+import ManualDeployNotice from './ManualDeployNotice';
 import type { User } from '@supabase/supabase-js';
 import { MARGIN } from '@/lib/constants';
 
@@ -112,6 +113,11 @@ export default function Board({
           </button>
           </div>
         </div>
+      </div>
+
+      {/* Manual Deploy Notice */}
+      <div style={{ padding: '0 20px' }}>
+        <ManualDeployNotice profile={profile} />
       </div>
 
       {/* Desktop: Kanban columns side by side */}
