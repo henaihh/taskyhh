@@ -1,15 +1,7 @@
--- Migration: Admin Panel + Client Invitation System
--- Run this in the Supabase SQL editor
+-- Migration for Admin Panel and Client Invitation System
+-- Run this in your Supabase SQL editor
 
--- 1. Add role column to user_profiles
-ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS role text DEFAULT 'client' CHECK (role IN ('admin', 'client'));
-
--- Set admin
-UPDATE user_profiles SET role = 'admin' WHERE id IN (
-  SELECT id FROM auth.users WHERE email = 'hlace.henry@gmail.com'
-);
-
--- 2. Create client_repos table
+-- Create client_repos table
 CREATE TABLE IF NOT EXISTS client_repos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL,
@@ -19,97 +11,189 @@ CREATE TABLE IF NOT EXISTS client_repos (
   created_at timestamptz DEFAULT now()
 );
 
--- 3. Create invitations table
+-- Create invitations table
 CREATE TABLE IF NOT EXISTS invitations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   token text UNIQUE NOT NULL,
   email text NOT NULL,
-  repos jsonb DEFAULT '[]'::jsonb,
+  repos jsonb, -- array of {repo_url, display_name}
   created_at timestamptz DEFAULT now(),
   accepted_at timestamptz,
   accepted boolean DEFAULT false
 );
 
--- 4. Enable RLS
+-- Add role column to user_profiles if it doesn't exist
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'user_profiles' AND column_name = 'role'
+  ) THEN
+    ALTER TABLE user_profiles 
+    ADD COLUMN role text DEFAULT 'client' CHECK (role IN ('admin', 'client'));
+  END IF;
+END $$;
+
+-- Set admin role for the admin user
+UPDATE user_profiles 
+SET role = 'admin' 
+WHERE id IN (
+  SELECT id FROM auth.users WHERE email = 'hlace.henry@gmail.com'
+);
+
+-- Enable RLS
 ALTER TABLE client_repos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 
--- Helper function to check if user is admin
-CREATE OR REPLACE FUNCTION is_admin(user_id uuid)
-RETURNS boolean AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM user_profiles WHERE id = user_id AND role = 'admin'
+-- RLS Policies for client_repos
+-- Admin can see all, clients see their own
+CREATE POLICY "Admin can view all client_repos" ON client_repos
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- 5. RLS Policies for client_repos
-CREATE POLICY "Admin full access on client_repos" ON client_repos
-  FOR ALL USING (is_admin(auth.uid()));
+CREATE POLICY "Client can view own repos" ON client_repos
+  FOR SELECT TO authenticated
+  USING (email = auth.email());
 
-CREATE POLICY "Clients read own repos" ON client_repos
-  FOR SELECT USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+-- Admin can insert/update/delete client_repos
+CREATE POLICY "Admin can insert client_repos" ON client_repos
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
 
--- 6. RLS Policies for invitations
-CREATE POLICY "Admin full access on invitations" ON invitations
-  FOR ALL USING (is_admin(auth.uid()));
+CREATE POLICY "Admin can update client_repos" ON client_repos
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
 
-CREATE POLICY "Anyone can read invitations by token" ON invitations
-  FOR SELECT USING (true);
+CREATE POLICY "Admin can delete client_repos" ON client_repos
+  FOR DELETE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
 
--- 7. Admin RLS policies for existing tables
-CREATE POLICY "Admin read all tasks" ON tasks
-  FOR SELECT USING (is_admin(auth.uid()));
+-- RLS Policies for invitations
+-- Admin can see all invitations
+CREATE POLICY "Admin can view all invitations" ON invitations
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
 
-CREATE POLICY "Admin read all user_profiles" ON user_profiles
-  FOR SELECT USING (is_admin(auth.uid()));
+-- Admin can insert/update/delete invitations
+CREATE POLICY "Admin can insert invitations" ON invitations
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
 
--- 8. Update the on_auth_user_created trigger to handle invitations
+CREATE POLICY "Admin can update invitations" ON invitations
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Admin can delete invitations" ON invitations
+  FOR DELETE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
+
+-- Enhanced RLS policies for tasks - Admin can see all tasks
+CREATE POLICY "Admin can view all tasks" ON tasks
+  FOR SELECT TO authenticated
+  USING (
+    user_id = auth.uid() OR
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
+
+-- Enhanced RLS policies for user_profiles - Admin can see all profiles
+DROP POLICY IF EXISTS "Users can read own profile" ON user_profiles;
+CREATE POLICY "Users can read profiles" ON user_profiles
+  FOR SELECT TO authenticated
+  USING (
+    id = auth.uid() OR
+    EXISTS (
+      SELECT 1 FROM user_profiles 
+      WHERE user_profiles.id = auth.uid() 
+      AND user_profiles.role = 'admin'
+    )
+  );
+
+-- Update or create the trigger function to handle invitations
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger AS $$
-DECLARE
-  _repo_url text;
-  _inv record;
 BEGIN
   -- Create user profile
-  INSERT INTO public.user_profiles (id, display_name, avatar_url)
+  INSERT INTO public.user_profiles (id, display_name, avatar_url, role)
   VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
-    NEW.raw_user_meta_data->>'avatar_url'
-  );
+    new.id,
+    COALESCE(new.raw_user_meta_data ->> 'full_name', new.email),
+    new.raw_user_meta_data ->> 'avatar_url',
+    'client'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    display_name = COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.email),
+    avatar_url = NEW.raw_user_meta_data ->> 'avatar_url';
 
-  -- Check client_repos for pre-assigned repo
-  SELECT repo_url INTO _repo_url FROM client_repos WHERE email = NEW.email LIMIT 1;
-  IF _repo_url IS NOT NULL THEN
-    UPDATE user_profiles SET repo_url = _repo_url WHERE id = NEW.id;
+  -- Set admin role for admin user
+  IF new.email = 'hlace.henry@gmail.com' THEN
+    UPDATE public.user_profiles 
+    SET role = 'admin' 
+    WHERE id = new.id;
   END IF;
 
-  -- Mark invitations as accepted
-  UPDATE invitations
-  SET accepted = true, accepted_at = now()
-  WHERE email = NEW.email AND accepted = false;
-
-  -- Create client_repos from invitation repos
-  FOR _inv IN SELECT * FROM invitations WHERE email = NEW.email LOOP
-    IF _inv.repos IS NOT NULL AND jsonb_array_length(_inv.repos) > 0 THEN
-      INSERT INTO client_repos (email, repo_url, display_name, created_by)
-      SELECT NEW.email, r->>'repo_url', r->>'display_name', NULL
-      FROM jsonb_array_elements(_inv.repos) AS r
-      ON CONFLICT DO NOTHING;
-    END IF;
-  END LOOP;
-
-  -- Set admin role if applicable
-  IF NEW.email = 'hlace.henry@gmail.com' THEN
-    UPDATE user_profiles SET role = 'admin' WHERE id = NEW.id;
-  END IF;
-
-  RETURN NEW;
+  RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ language plpgsql security definer;
 
--- Recreate trigger (drop if exists)
+-- Create trigger if it doesn't exist
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_client_repos_email ON client_repos(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
