@@ -12,6 +12,7 @@ export interface UserProfile {
   manual_deploy_required?: boolean;
   manual_deploy_reason?: string | null;
   onboarded: boolean;
+  role?: 'admin' | 'client';
 }
 
 export interface Task {
@@ -84,6 +85,25 @@ export interface TaskCost {
   margin: number;
   inputTokens: number;
   outputTokens: number;
+}
+
+export interface ClientRepo {
+  id: string;
+  email: string;
+  repo_url: string | null;
+  display_name: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface Invitation {
+  id: string;
+  token: string;
+  email: string;
+  repos: { repo_url: string; display_name: string }[];
+  created_at: string;
+  accepted_at: string | null;
+  accepted: boolean;
 }
 
 export type Currency = 'USD' | 'ARS' | 'BTC';

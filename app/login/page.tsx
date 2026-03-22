@@ -3,15 +3,22 @@
 import { createClient } from '@/lib/supabase/client';
 import { Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+
   const handleGoogleLogin = async () => {
     const supabase = createClient();
+    const redirectTo = inviteToken
+      ? `${window.location.origin}/auth/callback?invite=${inviteToken}`
+      : `${window.location.origin}/auth/callback`;
+
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo },
     });
   };
 
@@ -46,5 +53,13 @@ export default function LoginPage() {
         By signing in, you agree to our Terms of Service
       </p>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
