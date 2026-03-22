@@ -36,11 +36,13 @@ export default async function AdminDashboard() {
     .in('user_id', (clients || []).map(c => c.id));
 
   // Group repos by email
-  const reposByEmail = clientRepos?.reduce((acc, repo) => {
-    if (!acc[repo.email]) acc[repo.email] = [];
-    acc[repo.email].push(repo);
-    return acc;
-  }, {} as Record<string, typeof clientRepos>) || {};
+  const reposByEmail: Record<string, Array<{ id: string; email: string; repo_url: string; display_name: string }>> = {};
+  if (clientRepos) {
+    for (const repo of clientRepos) {
+      if (!reposByEmail[repo.email]) reposByEmail[repo.email] = [];
+      reposByEmail[repo.email].push(repo);
+    }
+  }
 
   // Calculate task stats
   const taskStatsByUser = taskCounts?.reduce((acc, task) => {
